@@ -1,24 +1,20 @@
 "use client";
 
 import { useState, useCallback } from 'react';
+import { useKeplr } from './use-keplr';
 import { useToast } from "@/components/ui/use-toast";
-import { chains } from 'chain-registry';
 
-interface ClaimRewardsParams {
-  address: string;
-  validatorAddresses: string[];
-}
-
-export function useClaimRewards() {
+export function useClaimRewards(chainName: string = 'osmosis') {
   const [isLoading, setIsLoading] = useState(false);
+  const { address, getSigningClient } = useKeplr(chainName);
   const { toast } = useToast();
 
-  const claimRewards = useCallback(async ({ address, validatorAddresses }: ClaimRewardsParams) => {
-    if (!window.keplr) {
+  const claimRewards = useCallback(async (validatorAddresses: string[]) => {
+    if (!address || !validatorAddresses.length) {
       toast({
         title: "Error",
-        description: "Keplr wallet not found",
-        variant: "destructive",
+        description: "No validators selected for claiming rewards",
+        variant: "destructive"
       });
       return false;
     }
@@ -26,43 +22,55 @@ export function useClaimRewards() {
     setIsLoading(true);
 
     try {
-      await window.keplr.enable("osmosis-1");
-      
+      const client = await getSigningClient();
+      if (!client) {
+        throw new Error("Failed to get signing client");
+      }
+
       // Create claim messages for each validator
       const messages = validatorAddresses.map(validatorAddress => ({
         typeUrl: "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
         value: {
           delegatorAddress: address,
-          validatorAddress: validatorAddress,
+          validatorAddress,
         },
       }));
 
       // Execute transaction
-      const offlineSigner = window.keplr.getOfflineSigner("osmosis-1");
-      const accounts = await offlineSigner.getAccounts();
-      
-      if (!accounts.length) {
-        throw new Error("No accounts found");
+      const tx = await client.signAndBroadcast(
+        address,
+        messages,
+        {
+          amount: [{ amount: "5000", denom: chainName === 'osmosis' ? "uosmo" : "uatom" }],
+          gas: "200000",
+        }
+      );
+
+      if (tx.code !== 0) {
+        throw new Error(tx.rawLog || 'Failed to claim rewards');
       }
 
       toast({
         title: "Success",
-        description: "Rewards claimed successfully",
+        description: "Successfully claimed rewards"
       });
 
+      // Refresh the page to update balances
+      window.location.reload();
+      
       return true;
     } catch (err) {
-      console.error("Error claiming rewards:", err);
+      console.error('Error claiming rewards:', err);
       toast({
         title: "Error",
         description: err instanceof Error ? err.message : "Failed to claim rewards",
-        variant: "destructive",
+        variant: "destructive"
       });
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [address, getSigningClient, chainName, toast]);
 
   return {
     claimRewards,
