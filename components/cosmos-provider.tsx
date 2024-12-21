@@ -5,14 +5,18 @@ import { Chain } from '@chain-registry/types';
 import { ChainProvider } from '@cosmos-kit/react';
 import { chains, assets } from 'chain-registry';
 import { wallets as keplrWallets } from '@cosmos-kit/keplr';
+import { adaptChainToCosmosKit } from '@/lib/chain-adapter';
 
 // Filter for Osmosis chain
-const osmosisChain = chains.find((chain: Chain) => chain.chain_name === 'osmosis');
+const osmosisChain = chains.find((chain) => chain.chain_name === 'osmosis');
 const osmosisAssets = assets.filter((asset) => asset.chain_name === 'osmosis');
 
 if (!osmosisChain) {
   throw new Error('Osmosis chain configuration not found in chain-registry');
 }
+
+// Adapt chain to CosmosKit format
+const adaptedOsmosisChain = adaptChainToCosmosKit(osmosisChain);
 
 // Get endpoints from chain-registry
 const rpcEndpoints = osmosisChain.apis?.rpc?.map(rpc => rpc.address) || [];
@@ -25,7 +29,7 @@ if (!rpcEndpoints.length || !restEndpoints.length) {
 export function CosmosProvider({ children }: { children: React.ReactNode }) {
   return (
     <ChainProvider
-      chains={[osmosisChain]}
+      chains={[adaptedOsmosisChain]}
       assetLists={osmosisAssets}
       wallets={keplrWallets}
       signerOptions={{
