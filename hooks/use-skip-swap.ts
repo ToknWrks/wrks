@@ -3,65 +3,12 @@
 import { create } from 'zustand';
 import { useKeplr } from './use-keplr';
 import { useToast } from "@/components/ui/use-toast";
+import { NOBLE_USDC } from '@/lib/constants/tokens';
+import { SUPPORTED_CHAINS } from '@/lib/constants/chains';
 import axios from 'axios';
 import { useEffect } from 'react';
 
 const SKIP_API_URL = "https://api.skip.build/v2/";
-
-// Token configuration for each chain
-const CHAIN_TOKENS: { [chainId: string]: { denom: string; symbol: string; logo: string } } = {
-  'osmosis-1': { 
-    denom: 'uosmo', 
-    symbol: 'OSMO',
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/osmosis/images/osmo.png'
-  },
-  'cosmoshub-4': { 
-    denom: 'uatom', 
-    symbol: 'ATOM',
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/cosmoshub/images/atom.png'
-  },
-  'juno-1': { 
-    denom: 'ujuno', 
-    symbol: 'JUNO',
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/juno/images/juno.png'
-  },
-  'akash-1': { 
-    denom: 'uakt', 
-    symbol: 'AKT',
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/akash/images/akt.png'
-  },
-  'celestia-1': { 
-    denom: 'utia', 
-    symbol: 'TIA',
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/celestia/images/celestia.png'
-  },
-  'regen-1': { 
-    denom: 'uregen', 
-    symbol: 'REGEN',
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/regen/images/regen.png'
-  },
-  'dydx-mainnet-1': { 
-    denom: 'adydx', 
-    symbol: 'DYDX',
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/dydx/images/dydx.png'
-  },
-  'saga-1': { 
-    denom: 'usaga', 
-    symbol: 'SAGA',
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/saga/images/saga.png'
-  },
-  'omniflixhub-1': { 
-    denom: 'uflix', 
-    symbol: 'FLIX',
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/omniflixhub/images/flix.png'
-  }
-};
-
-const NOBLE_USDC = {
-  denom: 'noble-usdc',
-  symbol: 'USDC',
-  logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/noble/images/usdc.png'
-};
 
 interface SwapState {
   fromToken: string;
@@ -115,7 +62,7 @@ export function useSkipSwap(chainName: string = 'osmosis') {
                  chainName === 'osmosis' ? 'osmosis-1' : 
                  chainName === 'omniflixhub' ? 'omniflixhub-1' :
                  `${chainName}-1`;
-  const chainToken = CHAIN_TOKENS[chainId];
+  const chainToken = SUPPORTED_CHAINS[chainName as keyof typeof SUPPORTED_CHAINS];
 
   // Set initial from token based on connected chain
   useEffect(() => {
