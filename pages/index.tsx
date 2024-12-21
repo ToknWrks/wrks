@@ -1,9 +1,11 @@
+"use client";
+
 import { Header } from "@/components/dashboard/header";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { RewardsChart } from "@/components/dashboard/rewards-chart";
 import { DelegationsCard } from "@/components/dashboard/delegations-card";
 import { ChainInfo } from "@/components/dashboard/chain-info";
-import { CoinsIcon, DollarSignIcon, PiggyBankIcon } from "lucide-react";
+import { CoinsIcon, DollarSignIcon, PiggyBankIcon, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InfoIcon } from "lucide-react";
 import { useState } from "react";
@@ -55,23 +57,32 @@ export default function Dashboard() {
               <StatsCard
                 title="Available OSMO"
                 type="available"
+                value={Number(balance)}
                 icon={<CoinsIcon className="h-4 w-4 text-muted-foreground" />}
                 description="Available balance in your wallet"
                 isLoading={isLoading}
+                tokenSymbol="OSMO"
+                chainName="osmosis"
               />
               <StatsCard
                 title="Staked OSMO"
                 type="staked"
+                value={Number(stakedBalance)}
                 icon={<PiggyBankIcon className="h-4 w-4 text-muted-foreground" />}
                 description="Total OSMO staked"
                 isLoading={isLoading}
+                tokenSymbol="OSMO"
+                chainName="osmosis"
               />
               <StatsCard
                 title="Unclaimed Rewards"
                 type="unclaimed"
+                value={Number(unclaimedRewards)}
                 icon={<CoinsIcon className="h-4 w-4 text-muted-foreground" />}
                 description="Estimated Tax"
                 isLoading={isLoading}
+                tokenSymbol="OSMO"
+                chainName="osmosis"
               />
               <StatsCard
                 title="Total Value"
@@ -80,6 +91,8 @@ export default function Dashboard() {
                 icon={<DollarSignIcon className="h-4 w-4 text-muted-foreground" />}
                 description="Value of all OSMO"
                 isLoading={isLoading}
+                tokenSymbol="OSMO"
+                chainName="osmosis"
               />
             </div>
 
