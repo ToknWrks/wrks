@@ -1,34 +1,39 @@
-import * as React from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+"use client";
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SUPPORTED_CHAINS } from "@/lib/constants/chains";
+import { NOBLE_USDC } from "@/lib/constants/tokens";
 import Image from "next/image";
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface Token {
-  denom: string;
-  symbol: string;
-  name: string;
-  logo?: string;
-  balance?: string;
-}
-
 interface TokenSelectProps {
-  tokens: Token[];
   value: string;
   onValueChange: (value: string) => void;
+  chainName: string;
   isLoading?: boolean;
 }
 
-export function TokenSelect({ tokens, value, onValueChange, isLoading }: TokenSelectProps) {
+export function TokenSelect({ value, onValueChange, chainName, isLoading }: TokenSelectProps) {
   if (isLoading) {
     return <Skeleton className="h-10 w-[120px]" />;
   }
 
+  // Get token info based on chain
+  const getTokenInfo = () => {
+    if (chainName === 'noble') {
+      return [NOBLE_USDC];
+    }
+    const chain = SUPPORTED_CHAINS[chainName as keyof typeof SUPPORTED_CHAINS];
+    if (!chain) return [];
+    return [{
+      denom: chain.denom,
+      symbol: chain.symbol,
+      name: chain.name,
+      logo: chain.icon
+    }];
+  };
+
+  const tokens = getTokenInfo();
   const selectedToken = tokens.find(t => t.denom === value);
 
   return (
@@ -69,11 +74,6 @@ export function TokenSelect({ tokens, value, onValueChange, isLoading }: TokenSe
                 </div>
               )}
               <span>{token.symbol}</span>
-              {token.balance && (
-                <span className="text-xs text-muted-foreground">
-                  ({token.balance})
-                </span>
-              )}
             </div>
           </SelectItem>
         ))}
