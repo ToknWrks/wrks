@@ -2,69 +2,39 @@
 
 import { useState, useEffect } from 'react';
 import { useChainInfo } from './use-chain-info';
-import { getAddressForChain } from './use-address-converter';
-import { useChainCache } from './use-chain-cache';
 import { useChainSettings } from './use-chain-settings';
+import { useChainCache } from './use-chain-cache';
 import { useTokenPrice } from './use-token-price';
-import axios from 'axios';
-import { logError } from './use-error-handling';
+import { SUPPORTED_CHAINS } from '@/lib/constants/chains';
+import { fetchChainBalance, fetchChainDelegations, fetchChainRewards } from '@/lib/api/chain';
+import { logError } from '@/lib/error-handling';
 
-interface ChainBalance {
-  available: string;
-  staked: string;
-  rewards: string;
-  usdValues: {
+interface ChainBalances {
+  [chainName: string]: {
     available: string;
     staked: string;
     rewards: string;
-    total: string;
-  };
-  chainInfo: {
-    chainName: string;
-    symbol: string;
-    image?: string;
+    usdValues: {
+      available: string;
+      staked: string;
+      rewards: string;
+      total: string;
+    };
   };
 }
-
-interface MultiChainBalances {
-  [chainName: string]: ChainBalance;
-}
-
-const REQUEST_TIMEOUT = 15000;
-
-// Chain-specific denom configurations
-const CHAIN_DENOMS: { [key: string]: string } = {
-  'osmosis': 'uosmo',
-  'cosmoshub': 'uatom',
-  'akash': 'uakt',
-  'celestia': 'utia',
-  'regen': 'uregen',
-  'juno': 'ujuno',
-  'dydx': 'adydx',
-  'saga': 'usaga',
-  'omniflixhub': 'uflix',
-  'stargaze': 'ustars',
-  'stride': 'ustrd',
-  'sentinel': 'udvpn',
-  'persistence': 'uxprt',
-  'secret': 'uscrt',
-  'terra': 'uluna',
-  'kujira': 'ukuji'
-};
 
 export function useMultiChainBalances(osmosisAddress?: string) {
-  const [balances, setBalances] = useState<MultiChainBalances>({});
+  const [balances, setBalances] = useState<ChainBalances>({});
   const [isLoading, setIsLoading] = useState(true);
   const [loadingChains, setLoadingChains] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const { chainInfos } = useChainInfo();
   const { enabledChains } = useChainSettings();
   const { getBalances: getCachedBalances, setBalances: setCachedBalances } = useChainCache();
   const { fetchPrice } = useTokenPrice();
 
   useEffect(() => {
     const fetchBalances = async () => {
-      if (!osmosisAddress || !Object.keys(chainInfos).length) {
+      if (!osmosisAddress) {
         setIsLoading(false);
         return;
       }
@@ -72,81 +42,52 @@ export function useMultiChainBalances(osmosisAddress?: string) {
       setIsLoading(true);
       setError(null);
 
+      // Use cached balances initially
       const cachedBalances = getCachedBalances();
       if (Object.keys(cachedBalances).length > 0) {
         setBalances(cachedBalances);
       }
 
-      const newBalances: MultiChainBalances = {};
+      const newBalances: ChainBalances = {};
       const loadingChainsSet = new Set<string>();
 
       try {
-        const enabledChainInfos = Object.entries(chainInfos)
-          .filter(([chainName]) => enabledChains.has(chainName));
+        const enabledChainsList = Array.from(enabledChains)
+          .filter(chainName => chainName in SUPPORTED_CHAINS);
 
         await Promise.all(
-          enabledChainInfos.map(async ([chainName, info]) => {
+          enabledChainsList.map(async (chainName) => {
             try {
-              const chainAddress = getAddressForChain(osmosisAddress, chainName);
-              if (!chainAddress) {
-                console.warn(`Failed to convert address for ${chainName}`);
-                return;
-              }
+              const chain = SUPPORTED_CHAINS[chainName as keyof typeof SUPPORTED_CHAINS];
+              if (!chain) return;
 
               loadingChainsSet.add(chainName);
               setLoadingChains(new Set(loadingChainsSet));
 
-              const denom = CHAIN_DENOMS[chainName] || info.denom;
-              const decimals = info.decimals || 6;
-
-              const [balanceRes, stakingRes, rewardsRes] = await Promise.all([
-                axios.get(`${info.rest}/cosmos/bank/v1beta1/balances/${chainAddress}`, { timeout: REQUEST_TIMEOUT }),
-                axios.get(`${info.rest}/cosmos/staking/v1beta1/delegations/${chainAddress}`, { timeout: REQUEST_TIMEOUT }),
-                axios.get(`${info.rest}/cosmos/distribution/v1beta1/delegators/${chainAddress}/rewards`, { timeout: REQUEST_TIMEOUT })
+              // Fetch chain data in parallel
+              const [available, delegationData, rewards] = await Promise.all([
+                fetchChainBalance(chain.rest, osmosisAddress, chain.denom, chain.decimals),
+                fetchChainDelegations(chain.rest, osmosisAddress, chain.decimals),
+                fetchChainRewards(chain.rest, osmosisAddress, chain.denom, chain.decimals)
               ]);
 
-              const availableBalance = balanceRes.data.balances?.find(
-                (b: any) => b.denom === denom
-              );
-
-              const stakedAmount = stakingRes.data.delegation_responses?.reduce(
-                (sum: number, del: any) => sum + Number(del.balance.amount),
-                0
-              );
-
-              const rewards = rewardsRes.data.total?.find(
-                (r: any) => r.denom === denom
-              );
-
-              const available = availableBalance 
-                ? (Number(availableBalance.amount) / Math.pow(10, decimals)).toFixed(decimals)
-                : "0";
-              const staked = stakedAmount
-                ? (Number(stakedAmount) / Math.pow(10, decimals)).toFixed(decimals)
-                : "0";
-              const rewardsAmount = rewards
-                ? (Number(rewards.amount) / Math.pow(10, decimals)).toFixed(decimals)
-                : "0";
-
+              // Get token price
               const price = await fetchPrice(chainName);
+
+              // Calculate USD values
               const usdValues = {
                 available: (Number(available) * price).toFixed(2),
-                staked: (Number(staked) * price).toFixed(2),
-                rewards: (Number(rewardsAmount) * price).toFixed(2),
-                total: ((Number(available) + Number(staked) + Number(rewardsAmount)) * price).toFixed(2)
+                staked: (Number(delegationData.stakedBalance) * price).toFixed(2),
+                rewards: (Number(rewards) * price).toFixed(2),
+                total: ((Number(available) + Number(delegationData.stakedBalance) + Number(rewards)) * price).toFixed(2)
               };
 
-              if (Number(available) > 0 || Number(staked) > 0 || Number(rewardsAmount) > 0) {
+              if (Number(available) > 0 || Number(delegationData.stakedBalance) > 0 || Number(rewards) > 0) {
                 newBalances[chainName] = {
                   available,
-                  staked,
-                  rewards: rewardsAmount,
-                  usdValues,
-                  chainInfo: {
-                    chainName: info.chainName,
-                    symbol: info.symbol,
-                    image: info.image
-                  }
+                  staked: delegationData.stakedBalance,
+                  rewards,
+                  usdValues
                 };
               }
             } catch (err) {
@@ -170,7 +111,7 @@ export function useMultiChainBalances(osmosisAddress?: string) {
     };
 
     fetchBalances();
-  }, [osmosisAddress, chainInfos, enabledChains, getCachedBalances, setCachedBalances, fetchPrice]);
+  }, [osmosisAddress, enabledChains, getCachedBalances, setCachedBalances, fetchPrice]);
 
   return {
     balances,
