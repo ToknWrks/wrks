@@ -2,7 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  output: 'export',
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -17,8 +19,7 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'assets.leapwallet.io',
       }
-    ],
-    unoptimized: true
+    ]
   },
   webpack: (config) => {
     config.resolve.fallback = { 
