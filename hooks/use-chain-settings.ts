@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { SUPPORTED_CHAINS } from '@/lib/constants/chains';
 
 interface ChainSettingsState {
   enabledChains: Set<string>;
@@ -11,10 +12,13 @@ interface ChainSettingsState {
   isChainEnabled: (chainName: string) => boolean;
 }
 
+// Initialize with default enabled chains
+const DEFAULT_ENABLED_CHAINS = Object.keys(SUPPORTED_CHAINS);
+
 export const useChainSettingsStore = create<ChainSettingsState>()(
   persist(
     (set, get) => ({
-      enabledChains: new Set(),
+      enabledChains: new Set(DEFAULT_ENABLED_CHAINS),
       setEnabledChains: (chains) => set({ enabledChains: new Set(chains) }),
       toggleChain: (chainName) => set((state) => {
         const newEnabledChains = new Set(state.enabledChains);
@@ -63,7 +67,6 @@ export const useChainSettingsStore = create<ChainSettingsState>()(
 
 export function useChainSettings() {
   const store = useChainSettingsStore();
-
   return {
     enabledChains: store.enabledChains,
     toggleChain: store.toggleChain,
