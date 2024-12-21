@@ -1,11 +1,6 @@
-import { MoonStar, Sun, Wallet, Menu, Settings } from "lucide-react";
-import { useTheme } from "next-themes";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+"use client";
+
+import { Wallet, Menu, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SettingsModal } from "./settings-modal";
 import { SwapModal } from "./swap-modal";
@@ -14,29 +9,23 @@ import { useState } from "react";
 import { useKeplr } from "@/hooks/use-keplr";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
 import { NETWORKS } from "@/config/networks";
+import { ClaimAllButton } from "./claim-all-button";
+import { ThemeToggle } from "./theme-toggle";
 
 interface HeaderProps {
   chainName?: string;
 }
 
 export function Header({ chainName = 'osmosis' }: HeaderProps) {
-  const { setTheme } = useTheme();
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const { status, isLoading, address, disconnect, unclaimedRewards } = useKeplr(chainName);
+  const { status, isLoading, address, disconnect, unclaimedRewards, connect } = useKeplr(chainName);
   const [isOpen, setIsOpen] = useState(false);
-  const [isClaimingRewards, setIsClaimingRewards] = useState(false);
 
   const formatAddress = (addr: string) => {
     if (!addr) return '';
@@ -46,25 +35,15 @@ export function Header({ chainName = 'osmosis' }: HeaderProps) {
   const isWalletConnected = status === 'Connected';
   const isWalletConnecting = isLoading;
 
-  const handleWalletClick = () => {
+  const handleWalletClick = async () => {
     if (isWalletConnected) {
       disconnect();
     } else {
-      setShowWalletModal(true);
-    }
-  };
-
-  const handleClaimRewards = async () => {
-    if (!isWalletConnected || !unclaimedRewards || Number(unclaimedRewards) === 0) return;
-
-    setIsClaimingRewards(true);
-    try {
-      // TODO: Implement claim rewards functionality
-      console.log("Claiming rewards...");
-    } catch (err) {
-      console.error("Error claiming rewards:", err);
-    } finally {
-      setIsClaimingRewards(false);
+      try {
+        await connect();
+      } catch (err) {
+        console.error('Failed to connect wallet:', err);
+      }
     }
   };
 
@@ -131,9 +110,7 @@ export function Header({ chainName = 'osmosis' }: HeaderProps) {
 
         <div className="mr-4 flex">
           <Link href="/" className="mr-6 flex items-center space-x-2">
-            <span className="font-bold">
-              ToknWrks
-            </span>
+            <span className="font-bold">ToknWrks</span>
           </Link>
         </div>
 
@@ -147,20 +124,7 @@ export function Header({ chainName = 'osmosis' }: HeaderProps) {
             </Button>
 
             {isWalletConnected && Number(unclaimedRewards) > 0 && (
-              <Button
-                variant="outline"
-                onClick={handleClaimRewards}
-                disabled={isClaimingRewards}
-              >
-                {isClaimingRewards ? (
-                  <span className="flex items-center">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Claiming...
-                  </span>
-                ) : (
-                  'Claim Rewards'
-                )}
-              </Button>
+              <ClaimAllButton />
             )}
 
             <Button 
@@ -190,20 +154,7 @@ export function Header({ chainName = 'osmosis' }: HeaderProps) {
               <span className="sr-only">Settings</span>
             </Button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                  <MoonStar className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                  <span className="sr-only">Toggle theme</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setTheme("light")}>Light</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("dark")}>Dark</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("system")}>System</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ThemeToggle />
           </div>
         </div>
       </div>
