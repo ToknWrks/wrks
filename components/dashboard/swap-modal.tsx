@@ -1,9 +1,6 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+"use client";
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -11,30 +8,16 @@ import { useSkipSwap } from "@/hooks/use-skip-swap";
 import { TokenSelect } from "./token-select";
 import { ChainSelect } from "./chain-select";
 import { ArrowDownUp, Loader2 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useKeplr } from "@/hooks/use-keplr";
 import { useSwapSettings } from "@/hooks/use-swap-settings";
+import { SUPPORTED_CHAINS } from "@/lib/constants/chains";
 
 interface SwapModalProps {
   open: boolean;
   onClose: () => void;
   chainName?: string;
 }
-
-const DEFAULT_TOKENS = [
-  { 
-    denom: 'uosmo', 
-    symbol: 'OSMO', 
-    name: 'Osmosis', 
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/osmosis/images/osmo.png' 
-  },
-  { 
-    denom: 'noble-usdc', 
-    symbol: 'USDC', 
-    name: 'Noble USDC', 
-    logo: 'https://raw.githubusercontent.com/cosmos/chain-registry/master/noble/images/usdc.png' 
-  }
-];
 
 export function SwapModal({ open, onClose, chainName = 'osmosis' }: SwapModalProps) {
   const { balance, status } = useKeplr(chainName);
@@ -59,14 +42,14 @@ export function SwapModal({ open, onClose, chainName = 'osmosis' }: SwapModalPro
   const [toChain, setToChain] = useState("noble-1");
 
   // Calculate auto-amount only when needed
-  const calculateAutoAmount = useCallback(() => {
+  const calculateAutoAmount = () => {
     if (status === 'Connected' && balance && settings.autoSwapPercentage) {
       return (Number(balance) * settings.autoSwapPercentage / 100).toFixed(6);
     }
     return "";
-  }, [status, balance, settings.autoSwapPercentage]);
+  };
 
-  // Set initial amount only when modal opens
+  // Set initial amount and from token when modal opens
   useEffect(() => {
     if (open) {
       const autoAmount = calculateAutoAmount();
@@ -76,8 +59,14 @@ export function SwapModal({ open, onClose, chainName = 'osmosis' }: SwapModalPro
       if (autoAmount) {
         getEstimate(autoAmount);
       }
+
+      // Set from token based on connected chain
+      const chain = SUPPORTED_CHAINS[chainName as keyof typeof SUPPORTED_CHAINS];
+      if (chain && fromToken !== chain.denom) {
+        setFromToken(chain.denom);
+      }
     }
-  }, [open, calculateAutoAmount]);
+  }, [open, chainName, fromToken, setFromToken]);
 
   // Handle amount changes
   const handleAmountChange = (value: string) => {
@@ -86,19 +75,6 @@ export function SwapModal({ open, onClose, chainName = 'osmosis' }: SwapModalPro
       getEstimate(value);
     }
   };
-
-  // Update tokens list based on chain
-  const availableTokens = DEFAULT_TOKENS.map(token => {
-    if (token.denom === fromToken && chainToken) {
-      return {
-        ...token,
-        denom: chainToken.denom,
-        symbol: chainToken.symbol,
-        name: chainToken.symbol
-      };
-    }
-    return token;
-  });
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -125,9 +101,9 @@ export function SwapModal({ open, onClose, chainName = 'osmosis' }: SwapModalPro
                 onChange={(e) => handleAmountChange(e.target.value)}
               />
               <TokenSelect
-                tokens={availableTokens}
                 value={fromToken}
                 onValueChange={setFromToken}
+                chainName={chainName}
               />
             </div>
           </div>
@@ -160,9 +136,9 @@ export function SwapModal({ open, onClose, chainName = 'osmosis' }: SwapModalPro
                 disabled
               />
               <TokenSelect
-                tokens={availableTokens}
                 value={toToken}
                 onValueChange={setToToken}
+                chainName="noble"
               />
             </div>
           </div>
