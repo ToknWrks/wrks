@@ -1,3 +1,5 @@
+"use client";
+
 import { Header } from "@/components/dashboard/header";
 import { useKeplr } from "@/hooks/use-keplr";
 import { StatsCard } from "@/components/dashboard/stats-card";
@@ -21,6 +23,7 @@ export default function CelestiaPage() {
     connect
   } = useKeplr('celestia');
 
+  // Auto-connect when page loads
   useEffect(() => {
     if (status === 'Disconnected' && !isLoading) {
       connect();
