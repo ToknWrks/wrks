@@ -1,3 +1,5 @@
+"use client";
+
 import { Header } from "@/components/dashboard/header";
 import { useKeplr } from "@/hooks/use-keplr";
 import { useMultiChainBalances } from "@/hooks/use-multi-chain-balances";
@@ -7,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InfoIcon, Loader2 } from "lucide-react";
 import { useChainSettings } from "@/hooks/use-chain-settings";
 import { AssetsChart } from "@/components/dashboard/assets-chart";
+import { SUPPORTED_CHAINS } from "@/lib/constants/chains";
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -19,18 +22,30 @@ export default function ChainsPage() {
   const { enabledChains } = useChainSettings();
 
   // Filter chains based on enabled state and balances
-  const chainsWithBalances = Object.entries(balances)
-    .filter(([chainName]) => enabledChains.has(chainName))
-    .filter(([_, balance]) => {
-      const hasAvailable = Number(balance.available) > 0;
-      const hasStaked = Number(balance.staked) > 0;
-      const hasRewards = Number(balance.rewards) > 0;
-      return hasAvailable || hasStaked || hasRewards;
-    });
+  const chainsWithBalances = useMemo(() => {
+    return Object.entries(SUPPORTED_CHAINS)
+      .filter(([chainName]) => enabledChains.has(chainName))
+      .map(([chainName, chain]) => ({
+        chainName,
+        chain,
+        balance: balances[chainName] || {
+          available: "0",
+          staked: "0",
+          rewards: "0",
+          usdValues: {
+            available: "0",
+            staked: "0",
+            rewards: "0",
+            total: "0"
+          }
+        }
+      }))
+      .sort((a, b) => Number(b.balance.usdValues.total) - Number(a.balance.usdValues.total));
+  }, [balances, enabledChains]);
 
   // Calculate total value across all chains
   const totalValue = useMemo(() => {
-    return chainsWithBalances.reduce((sum, [_, balance]) => {
+    return chainsWithBalances.reduce((sum, { balance }) => {
       return sum + Number(balance.usdValues.total);
     }, 0).toFixed(2);
   }, [chainsWithBalances]);
@@ -38,61 +53,17 @@ export default function ChainsPage() {
   // Prepare data for the assets chart
   const chartData = useMemo(() => {
     return chainsWithBalances
-      .map(([_, balance]) => ({
-        name: balance.chainInfo.symbol,
+      .filter(({ balance }) => Number(balance.usdValues.total) > 0)
+      .map(({ chain, balance }) => ({
+        name: chain.symbol,
         value: Number(balance.usdValues.total),
-        symbol: balance.chainInfo.symbol
-      }))
-      .filter(item => item.value > 0)
-      .sort((a, b) => b.value - a.value);
+        symbol: chain.symbol
+      }));
   }, [chainsWithBalances]);
 
   const formatNumber = (value: string) => {
     const num = Number(value);
     return num.toFixed(6);
-  };
-
-  const renderBalances = (chainName: string) => {
-    const balance = balances[chainName];
-    if (!balance) return null;
-
-    return (
-      <div className="space-y-1 text-sm">
-        {Number(balance.available) > 0 && (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Available:</span>
-            <div className="text-right">
-              <div>{formatNumber(balance.available)} {balance.chainInfo.symbol}</div>
-              <div className="text-xs text-muted-foreground">${balance.usdValues.available}</div>
-            </div>
-          </div>
-        )}
-        {Number(balance.staked) > 0 && (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Staked:</span>
-            <div className="text-right">
-              <div>{formatNumber(balance.staked)} {balance.chainInfo.symbol}</div>
-              <div className="text-xs text-muted-foreground">${balance.usdValues.staked}</div>
-            </div>
-          </div>
-        )}
-        {Number(balance.rewards) > 0 && (
-          <div className="flex justify-between text-green-500">
-            <span>Claimable:</span>
-            <div className="text-right">
-              <div>{formatNumber(balance.rewards)} {balance.chainInfo.symbol}</div>
-              <div className="text-xs text-muted-foreground">${balance.usdValues.rewards}</div>
-            </div>
-          </div>
-        )}
-        <div className="pt-2 mt-2 border-t">
-          <div className="flex justify-between font-medium">
-            <span>Total Value:</span>
-            <span>${balance.usdValues.total}</span>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -146,13 +117,17 @@ export default function ChainsPage() {
               <Alert>
                 <InfoIcon className="h-4 w-4" />
                 <AlertDescription>
-                  No balances found in enabled chains. Enable chains in settings to view balances.
+                  No chains enabled. Enable chains in settings to view balances.
                 </AlertDescription>
               </Alert>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {chainsWithBalances.map(([chainName, balance]) => {
+                {chainsWithBalances.map(({ chainName, chain, balance }) => {
                   const href = chainName === 'osmosis' ? '/' : `/${chainName}`;
+                  const hasBalance = Number(balance.available) > 0 || 
+                                   Number(balance.staked) > 0 || 
+                                   Number(balance.rewards) > 0;
+
                   return (
                     <Link key={chainName} href={href}>
                       <Card className="hover:bg-muted/50 transition-colors cursor-pointer relative">
@@ -163,13 +138,13 @@ export default function ChainsPage() {
                         )}
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                           <CardTitle className="text-sm font-medium">
-                            {balance.chainInfo.chainName}
+                            {chain.name}
                           </CardTitle>
-                          {balance.chainInfo.image && (
+                          {chain.icon && (
                             <div className="h-8 w-8 relative">
                               <Image
-                                src={balance.chainInfo.image}
-                                alt={balance.chainInfo.chainName}
+                                src={chain.icon}
+                                alt={chain.name}
                                 fill
                                 className="object-contain"
                               />
@@ -177,7 +152,41 @@ export default function ChainsPage() {
                           )}
                         </CardHeader>
                         <CardContent>
-                          {renderBalances(chainName)}
+                          <div className="space-y-1 text-sm">
+                            {Number(balance.available) > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Available:</span>
+                                <div className="text-right">
+                                  <div>{formatNumber(balance.available)} {chain.symbol}</div>
+                                  <div className="text-xs text-muted-foreground">${balance.usdValues.available}</div>
+                                </div>
+                              </div>
+                            )}
+                            {Number(balance.staked) > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Staked:</span>
+                                <div className="text-right">
+                                  <div>{formatNumber(balance.staked)} {chain.symbol}</div>
+                                  <div className="text-xs text-muted-foreground">${balance.usdValues.staked}</div>
+                                </div>
+                              </div>
+                            )}
+                            {Number(balance.rewards) > 0 && (
+                              <div className="flex justify-between text-green-500">
+                                <span>Claimable:</span>
+                                <div className="text-right">
+                                  <div>{formatNumber(balance.rewards)} {chain.symbol}</div>
+                                  <div className="text-xs text-muted-foreground">${balance.usdValues.rewards}</div>
+                                </div>
+                              </div>
+                            )}
+                            <div className="pt-2 mt-2 border-t">
+                              <div className="flex justify-between font-medium">
+                                <span>Total Value:</span>
+                                <span>${balance.usdValues.total}</span>
+                              </div>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                     </Link>
